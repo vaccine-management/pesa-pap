@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useUser } from '@clerk/clerk-react';
 import { Link } from 'react-router-dom';
-import { Plus, Copy, ExternalLink } from 'lucide-react';
+import { Plus, Copy, ExternalLink, Trash } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 
@@ -24,21 +24,55 @@ export default function Dashboard() {
     recipient_phone: ''
   });
 
+  // Fetch payment links on component mount
+  useEffect(() => {
+    fetchPaymentLinks();
+  }, []);
+
+  const fetchPaymentLinks = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('payment_links')
+        .select('*')
+        .eq('user_id', user?.id); // Fetch payment links for the current user
+
+      if (error) {
+        console.error('Supabase Error:', error); // Log Supabase error
+        throw error;
+      }
+
+      console.log('Fetched Data:', data); // Log fetched data
+
+      setPaymentLinks(data as PaymentLink[]);
+    } catch (error) {
+      console.error('Error fetching payment links:', error); // Log general error
+    }
+  };
+
   const createPaymentLink = async (e: React.FormEvent) => {
     e.preventDefault();
+
     try {
+      console.log('Form Data:', formData); // Log form data
+
       const { data, error } = await supabase
         .from('payment_links')
         .insert([{
           user_id: user?.id,
           amount: parseFloat(formData.amount),
           description: formData.description,
-          recipient_phone: formData.recipient_phone
+          recipient_phone: formData.recipient_phone,
+          status: 'active',
         }])
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase Error:', error); // Log Supabase error
+        throw error;
+      }
+
+      console.log('Inserted Data:', data); // Log inserted data
 
       setPaymentLinks([data as PaymentLink, ...paymentLinks]);
       setIsCreating(false);
@@ -46,7 +80,7 @@ export default function Dashboard() {
       toast.success('Payment link created successfully!');
     } catch (error) {
       toast.error('Failed to create payment link');
-      console.error(error);
+      console.error('Error:', error); // Log general error
     }
   };
 
@@ -56,14 +90,31 @@ export default function Dashboard() {
     toast.success('Payment link copied to clipboard!');
   };
 
+  const deletePaymentLink = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('payment_links')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setPaymentLinks(paymentLinks.filter(link => link.id !== id));
+      toast.success('Payment link deleted successfully!');
+    } catch (error) {
+      toast.error('Failed to delete payment link');
+      console.error(error);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Payment Links</h1>
           <button
             onClick={() => setIsCreating(true)}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all"
           >
             <Plus className="w-5 h-5" />
             Create New Link
@@ -108,7 +159,7 @@ export default function Dashboard() {
               <div className="flex gap-4">
                 <button
                   type="submit"
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 py-2 rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all"
                 >
                   Create Link
                 </button>
@@ -124,40 +175,51 @@ export default function Dashboard() {
           </div>
         )}
 
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="divide-y divide-gray-200">
-            {paymentLinks.map((link) => (
-              <div key={link.id} className="p-6 flex items-center justify-between">
-                <div>
-                  <p className="text-lg font-medium text-gray-900">KES {link.amount.toLocaleString()}</p>
-                  <p className="text-sm text-gray-500">{link.description}</p>
-                  <p className="text-sm text-gray-500">To: {link.recipient_phone}</p>
-                </div>
-                <div className="flex gap-4">
-                  <button
-                    onClick={() => copyPaymentLink(link.id)}
-                    className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
-                  >
-                    <Copy className="w-5 h-5" />
-                    Copy Link
-                  </button>
-                  <Link
-                    to={`/pay/${link.id}`}
-                    target="_blank"
-                    className="flex items-center gap-2 text-blue-600 hover:text-blue-800"
-                  >
-                    <ExternalLink className="w-5 h-5" />
-                    Open
-                  </Link>
-                </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {paymentLinks.map((link) => (
+            <div
+              key={link.id}
+              className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow"
+            >
+              <div className="flex justify-between items-center mb-4">
+                <p className="text-lg font-medium text-gray-900">KES {link.amount.toLocaleString()}</p>
+                <span className={`px-2 py-1 text-sm rounded-full ${link.status === 'active' ? 'bg-green-100 text-green-600' : 'bg-yellow-100 text-yellow-600'}`}>
+                  {link.status}
+                </span>
               </div>
-            ))}
-            {paymentLinks.length === 0 && (
-              <div className="p-6 text-center text-gray-500">
-                No payment links yet. Create one to get started!
+              <p className="text-sm text-gray-500 mb-2">{link.description}</p>
+              <p className="text-sm text-gray-500 mb-4">To: {link.recipient_phone}</p>
+              <div className="flex gap-4">
+                <button
+                  onClick={() => copyPaymentLink(link.id)}
+                  className="flex items-center gap-2 text-blue-600 hover:text-blue-800"
+                >
+                  <Copy className="w-5 h-5" />
+                  Copy
+                </button>
+                <Link
+                  to={`/pay/${link.id}`}
+                  target="_blank"
+                  className="flex items-center gap-2 text-purple-600 hover:text-purple-800"
+                >
+                  <ExternalLink className="w-5 h-5" />
+                  Open
+                </Link>
+                <button
+                  onClick={() => deletePaymentLink(link.id)}
+                  className="flex items-center gap-2 text-red-600 hover:text-red-800"
+                >
+                  <Trash className="w-5 h-5" />
+                  Delete
+                </button>
               </div>
-            )}
-          </div>
+            </div>
+          ))}
+          {paymentLinks.length === 0 && (
+            <div className="col-span-full text-center text-gray-500">
+              No payment links yet. Create one to get started!
+            </div>
+          )}
         </div>
       </div>
     </div>
