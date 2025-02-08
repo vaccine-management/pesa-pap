@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { supabase } from "../lib/supabase";
+import axios from "axios";
 
 interface PaymentLink {
   id: string;
@@ -46,21 +47,47 @@ export default function PaymentPage() {
 
     try {
       // Here you would integrate with your M-Pesa API
+
+
+      
+        const resp = await axios.post(
+          "https://lipia-api.kreativelabske.com/api/request/stk",
+          {
+            phone: `0${phoneNumber.slice(3)}`,
+            amount: String(paymentLink?.amount),
+          },
+          {
+            headers: {
+              Authorization: "Bearer cba6b4a7aff5fa4e9f5aef92df278e326a85c6cb",
+            },
+          }
+        );
+
+
       // For now, we'll just create a transaction record
       const { error } = await supabase.from("transactions").insert({
         payment_link_id: linkId,
         amount: paymentLink?.amount,
         payer_phone: phoneNumber,
-        status: "pending",
+        status: "completed",
       });
 
       if (error) throw error;
 
       toast.success(
-        "STK push sent to your phone. Please enter your M-Pesa PIN to complete the payment."
+        "Payment completed."
       );
-    } catch (error) {
-      console.error("Error processing payment:", error);
+    } catch (err) {
+      const { error } = await supabase.from("transactions").insert({
+        payment_link_id: linkId,
+        amount: paymentLink?.amount,
+        payer_phone: phoneNumber,
+        status: "failed",
+      });
+
+      if (error) throw error;
+
+      console.error("Error processing payment:", err);
       toast.error("Failed to process payment");
     } finally {
       setProcessing(false);

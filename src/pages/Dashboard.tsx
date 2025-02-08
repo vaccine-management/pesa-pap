@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { Plus, Copy, ExternalLink, Trash } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
+import axios from 'axios';
 
 interface PaymentLink {
   id: string;
@@ -73,6 +74,24 @@ export default function Dashboard() {
       }
 
       console.log('Inserted Data:', data); // Log inserted data
+
+      // send the whatsapp message
+ 
+      try{
+ 
+        await axios.post("https://api.apiwap.com/api/v1/whatsapp/send-message",{
+
+       "phoneNumber": `+${formData.recipient_phone}`,
+    "message": `Hello, you have a payment link of KES ${formData.amount} to pay. Click on the link to pay:\n\nhttp://mylink.com/pay/${data.id}`,
+    "type": "text"
+        },{
+          headers:{
+            "Authorization":`Bearer 215f5122ce3f4b86ede84a26918d69325b9401ffe9a12998a37dd1af72591abb`
+          }
+        })
+      }catch(error){
+        console.log("failed to send message")
+      }
 
       setPaymentLinks([data as PaymentLink, ...paymentLinks]);
       setIsCreating(false);
